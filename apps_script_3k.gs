@@ -8,6 +8,8 @@ const CONFIG_3K = {
   SPREADSHEET_ID: '1Yz78l8Q95_JfvrDtra_NXrEzR8UHyftn7RXo7OaO1sU',
   SHEET_INPUT: 'Input Markah',
   SHEET_KELAS: 'Data Kelas',
+  // Tukar nombor ini sahaja apabila masuk minggu persekolahan baharu.
+  MINGGU_SEKOLAH_AKTIF: 24,
   BULAN: ['JANUARI','FEBRUARI','MAC','APRIL','MEI','JUN','JULAI','OGOS','SEPTEMBER','OKTOBER','NOVEMBER','DISEMBER']
 };
 
@@ -67,12 +69,29 @@ function ss3K_() {
   return SpreadsheetApp.openById(CONFIG_3K.SPREADSHEET_ID);
 }
 
+// Cari baris data sebenar melalui ID di kolum A. Jangan gunakan getLastRow()
+// kerana formula ARRAYFORMULA Jumlah_Markah memanjang hingga ribuan baris.
+function lastInputRow3K_(sheet) {
+  const maxRow = sheet.getMaxRows();
+  if (maxRow < 2) return 1;
+  const ids = sheet.getRange(2, 1, maxRow - 1, 1).getDisplayValues();
+  for (let i = ids.length - 1; i >= 0; i--) {
+    if (String(ids[i][0] || '').trim()) return i + 2;
+  }
+  return 1;
+}
+
+function inputData3K_(sheet) {
+  const lastRow = lastInputRow3K_(sheet);
+  return sheet.getRange(1, 1, lastRow, 19).getValues();
+}
+
 function getDashboard3K_() {
   const ss = ss3K_();
   const input = ss.getSheetByName(CONFIG_3K.SHEET_INPUT);
   if (!input) throw new Error("Sheet 'Input Markah' tidak dijumpai");
 
-  const raw = input.getDataRange().getValues();
+  const raw = inputData3K_(input);
   const headers = raw.shift().map(String);
   const idx = index3K_(headers);
   const grouped = {};
@@ -100,7 +119,9 @@ function getDashboard3K_() {
 
   const classes = senaraiKelas3K_();
   const today = new Date();
-  const currentWeek = minggu3K_(today);
+  // Minggu persekolahan ditetapkan secara manual kerana cuti sekolah
+  // menyebabkan nombornya tidak sama dengan minggu kalendar ISO.
+  const currentWeek = CONFIG_3K.MINGGU_SEKOLAH_AKTIF;
   const currentYear = today.getFullYear();
   const assessed = new Set();
 
@@ -129,7 +150,7 @@ function simpanPenilaian3K_(data, image) {
     if (!fullClass) throw new Error('Sila pilih kelas');
 
     const parsed = pecahKelas3K_(fullClass);
-    const minggu = Number(data.minggu) || minggu3K_(tarikh);
+    const minggu = Number(data.minggu) || CONFIG_3K.MINGGU_SEKOLAH_AKTIF;
     if (!Number.isInteger(minggu) || minggu<1 || minggu>53) throw new Error('Pilihan minggu mestilah antara Minggu 1 hingga Minggu 53');
     if (semakDuplikasi3K_(fullClass, tarikh, minggu)) {
       throw new Error(`${fullClass} sudah dinilai pada minggu ${minggu}. Rekod kedua tidak dibenarkan.`);
@@ -147,7 +168,7 @@ function simpanPenilaian3K_(data, image) {
     const total = marks.reduce((a,b)=>a+b,0);
     if (total>50) throw new Error('Jumlah markah tidak boleh melebihi 50');
 
-    const row = input.getLastRow()+1;
+    const row = lastInputRow3K_(input) + 1;
     const bulan = formatBulan3K_(CONFIG_3K.BULAN[tarikh.getMonth()]);
     const blok = cariBlok3K_(parsed.tingkatan, parsed.kelas);
     const id = Utilities.getUuid().slice(0,8);
@@ -184,11 +205,11 @@ function semakDuplikasi3K_(fullClass, tarikhValue, mingguPilihan) {
   const tarikh = date3K_(tarikhValue);
   if (!tarikh) return false;
   const parsed = pecahKelas3K_(String(fullClass || '').trim());
-  const minggu = Number(mingguPilihan) || minggu3K_(tarikh);
+  const minggu = Number(mingguPilihan) || CONFIG_3K.MINGGU_SEKOLAH_AKTIF;
   const tahun = tarikh.getFullYear();
   const input = ss3K_().getSheetByName(CONFIG_3K.SHEET_INPUT);
   if (!input || input.getLastRow()<2) return false;
-  const data = input.getDataRange().getValues();
+  const data = inputData3K_(input);
   const headers = data.shift().map(String);
   const idx = index3K_(headers);
   return data.some(row => {
@@ -203,7 +224,7 @@ function getMissingClasses3K_(week, year) {
   if (!Number.isInteger(week) || week<1 || week>53) throw new Error('Minggu tidak sah');
   const input=ss3K_().getSheetByName(CONFIG_3K.SHEET_INPUT);
   if (!input || input.getLastRow()<2) return senaraiKelas3K_();
-  const data=input.getDataRange().getValues();
+  const data=inputData3K_(input);
   const headers=data.shift().map(String);
   const idx=index3K_(headers);
   const assessed=new Set();
@@ -220,7 +241,7 @@ function updateRankingBulanan() {
   const ss = ss3K_();
   const source = ss.getSheetByName(CONFIG_3K.SHEET_INPUT);
   if (!source) throw new Error("Sheet 'Input Markah' tidak dijumpai");
-  const data = source.getDataRange().getValues();
+  const data = inputData3K_(source);
   const headers = data.shift().map(String);
   const idx = index3K_(headers);
 
