@@ -8,6 +8,7 @@ const CONFIG_3K = {
   SPREADSHEET_ID: '1Yz78l8Q95_JfvrDtra_NXrEzR8UHyftn7RXo7OaO1sU',
   SHEET_INPUT: 'Input Markah',
   SHEET_KELAS: 'Data Kelas',
+  FOLDER_GAMBAR_ID: '15O3JjXcBqxUM_f3J4iWrgKcvi29IWgdN',
   // Tukar nombor ini sahaja apabila masuk minggu persekolahan baharu.
   MINGGU_SEKOLAH_AKTIF: 24,
   BULAN: ['JANUARI','FEBRUARI','MAC','APRIL','MEI','JUN','JULAI','OGOS','SEPTEMBER','OKTOBER','NOVEMBER','DISEMBER']
@@ -37,7 +38,8 @@ function doGet(e) {
     if (action === 'reminder') {
       const week = Number(e.parameter.week);
       const year = Number(e.parameter.year) || new Date().getFullYear();
-      return output3K_({success:true, missingClasses:getMissingClasses3K_(week,year), week:week, year:year});
+      const status = getWeekStatus3K_(week, year);
+      return output3K_({success:true, missingClasses:status.missingClasses, assessedClasses:status.assessedClasses, week:week, year:year});
     }
     return output3K_({success:false, message:'Tindakan tidak dikenali: '+action});
   } catch (err) {
@@ -106,8 +108,8 @@ function getDashboard3K_() {
     if (!grouped[bulanKey][kelas]) grouped[bulanKey][kelas] = {name:kelas, total:0, records:0};
     grouped[bulanKey][kelas].total += markah;
     grouped[bulanKey][kelas].records++;
-    const imageUrl = String(row[17] || '').trim();
-    if (imageUrl) gallery.push({url:imageUrl, kelas:kelas, minggu:row[idx.minggu], tarikh:Utilities.formatDate(date3K_(row[idx.tarikh]) || new Date(),'Asia/Kuala_Lumpur','dd/MM/yyyy')});
+    const imageRef = String(row[17] || '').trim();
+    if (imageRef) gallery.push({ref:imageRef, kelas:kelas, minggu:row[idx.minggu], tarikh:Utilities.formatDate(date3K_(row[idx.tarikh]) || new Date(),'Asia/Kuala_Lumpur','dd/MM/yyyy')});
   });
 
   const monthlyData = {};
@@ -132,8 +134,8 @@ function getDashboard3K_() {
   });
 
   const missingClasses = classes.filter(k => !assessed.has(k.toUpperCase()));
-  gallery.reverse();
-  return {monthlyData, classes, missingClasses, currentWeek, gallery:gallery.slice(0,30), serverTime:today.toISOString()};
+  const visibleGallery = gallery.reverse().slice(0,30).map(x => ({url:imageData3K_(x.ref), kelas:x.kelas, minggu:x.minggu, tarikh:x.tarikh})).filter(x=>x.url);
+  return {monthlyData, classes, missingClasses, currentWeek, gallery:visibleGallery, serverTime:today.toISOString()};
 }
 
 function simpanPenilaian3K_(data, image) {
@@ -198,7 +200,57 @@ function uploadImage3K_(base64, originalName, kelas, minggu) {
   const blob=Utilities.newBlob(bytes,'image/jpeg',name);
   const file=folder.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK,DriveApp.Permission.VIEW);
-  return 'https://drive.google.com/uc?export=view&id='+file.getId();
+  return 'https://drive.google.com/thumbnail?id='+file.getId()+'&sz=w1600';
+}
+
+// AppSheet menyimpan gambar sebagai laluan relatif seperti
+// Input Markah_Images/abc.Gambar_Bukti.123456.jpg. Fungsi ini mencari fail
+// sebenar dalam Google Drive dan menukarkannya kepada URL yang boleh dipaparkan.
+function imageUrl3K_(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+
+  const fileName = decodeURIComponent(raw.split('/').pop());
+  const cache = CacheService.getScriptCache();
+  const key = 'img3k_v2_' + Utilities.base64EncodeWebSafe(fileName).slice(0, 177);
+  const cached = cache.get(key);
+  if (cached) return cached;
+
+  const folder = DriveApp.getFolderById(CONFIG_3K.FOLDER_GAMBAR_ID);
+  const files = folder.getFilesByName(fileName);
+  if (!files.hasNext()) return '';
+  const file = files.next();
+  try {
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  } catch (err) {
+    console.warn('Perkongsian gambar gagal: ' + err.message);
+  }
+  const url = 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w1600';
+  cache.put(key, url, 21600);
+  return url;
+}
+
+function imageData3K_(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  let file;
+  const idMatch = raw.match(/[?&]id=([^&]+)/) || raw.match(/\/d\/([^/]+)/);
+  try {
+    if (idMatch) {
+      file = DriveApp.getFileById(idMatch[1]);
+    } else {
+      const fileName = decodeURIComponent(raw.split('/').pop());
+      const files = DriveApp.getFolderById(CONFIG_3K.FOLDER_GAMBAR_ID).getFilesByName(fileName);
+      if (!files.hasNext()) return '';
+      file = files.next();
+    }
+    const blob = file.getBlob();
+    return 'data:' + (blob.getContentType() || 'image/jpeg') + ';base64,' + Utilities.base64Encode(blob.getBytes());
+  } catch (err) {
+    console.warn('Gambar gagal dibaca: ' + err.message);
+    return '';
+  }
 }
 
 function semakDuplikasi3K_(fullClass, tarikhValue, mingguPilihan) {
@@ -220,10 +272,10 @@ function semakDuplikasi3K_(fullClass, tarikhValue, mingguPilihan) {
   });
 }
 
-function getMissingClasses3K_(week, year) {
+function getWeekStatus3K_(week, year) {
   if (!Number.isInteger(week) || week<1 || week>53) throw new Error('Minggu tidak sah');
   const input=ss3K_().getSheetByName(CONFIG_3K.SHEET_INPUT);
-  if (!input || input.getLastRow()<2) return senaraiKelas3K_();
+  if (!input || input.getLastRow()<2) return {assessedClasses:[], missingClasses:senaraiKelas3K_()};
   const data=inputData3K_(input);
   const headers=data.shift().map(String);
   const idx=index3K_(headers);
@@ -234,7 +286,12 @@ function getMissingClasses3K_(week, year) {
       assessed.add(namaKelas3K_(row[idx.tingkatan],row[idx.kelas]).toUpperCase());
     }
   });
-  return senaraiKelas3K_().filter(k=>!assessed.has(k.toUpperCase()));
+  const allClasses = senaraiKelas3K_();
+  return {assessedClasses:allClasses.filter(k=>assessed.has(k.toUpperCase())), missingClasses:allClasses.filter(k=>!assessed.has(k.toUpperCase()))};
+}
+
+function getMissingClasses3K_(week, year) {
+  return getWeekStatus3K_(week, year).missingClasses;
 }
 
 function updateRankingBulanan() {
@@ -314,6 +371,11 @@ function formatBulan3K_(value) {
 function date3K_(value) {
   if (value instanceof Date && !isNaN(value)) return value;
   if (!value) return null;
+  const text=String(value).trim(), match=text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if (match) {
+    const parsed=new Date(Number(match[3]),Number(match[2])-1,Number(match[1]));
+    return isNaN(parsed) ? null : parsed;
+  }
   const d=new Date(value);
   return isNaN(d) ? null : d;
 }
