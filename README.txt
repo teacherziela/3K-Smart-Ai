@@ -1,14 +1,24 @@
-3K SMART AI – VERSI GITHUB PAGES
+3K SMART AI V2 – GITHUB PAGES + GOOGLE SHEETS
 
-CARA PASANG:
-1. Ekstrak semua fail ZIP ini.
-2. Buka repository GitHub yang Ateh mahu gunakan.
-3. Klik Add file > Upload files.
-4. Upload SEMUA kandungan folder ini. Pastikan index.html berada di bahagian utama repository.
-5. Klik Commit changes.
-6. Buka Settings > Pages.
-7. Pada Build and deployment pilih Deploy from a branch.
-8. Pilih Branch: main dan folder: / (root), kemudian Save.
-9. Tunggu 1–3 minit dan buka pautan GitHub Pages.
+A. APPS SCRIPT (JANGAN DELETE KOD LAMA)
+1. Buka Google Sheets Unit 3K.
+2. Klik Extensions > Apps Script.
+3. KEKALKAN fungsi updateRankingBulanan() yang sedia ada.
+4. Buka fail apps_script_3k.gs dalam ZIP ini menggunakan Notepad.
+5. Salin semua kod dan tampal DI BAWAH kod lama.
+6. Klik Save.
+7. Klik Deploy > New deployment > Web app.
+8. Execute as: Me. Who has access: Anyone.
+9. Klik Deploy, beri kebenaran dan salin URL yang berakhir dengan /exec.
 
-Versi ini terus berjalan tanpa npm. Data yang dipaparkan ialah data prototaip Februari, Mac dan Julai. Sambungan Google Sheets akan dibuat pada fasa berikutnya.
+B. MASUKKAN URL
+1. Buka config.js menggunakan Notepad.
+2. Tampal URL tadi di antara tanda petik API_URL:"PASTE_URL_DI_SINI".
+3. Save.
+
+C. GITHUB
+1. Upload index.html, style.css, script.js, config.js dan folder assets ke repository.
+2. Fail index.html mesti berada pada bahagian utama repository.
+3. Settings > Pages > Deploy from a branch > main > /(root) > Save.
+
+SEMUA KAD MENU V2 BOLEH DITEKAN. Isi Penilaian dan data sebenar memerlukan Apps Script dipasang.
