@@ -1,11 +1,11 @@
 3K SMART AI V2 – GITHUB PAGES + GOOGLE SHEETS
 
-A. APPS SCRIPT (JANGAN DELETE KOD LAMA)
+A. APPS SCRIPT BAHARU LENGKAP
 1. Buka Google Sheets Unit 3K.
 2. Klik Extensions > Apps Script.
-3. KEKALKAN fungsi updateRankingBulanan() yang sedia ada.
+3. Padam SEMUA kod lama dalam Code.gs.
 4. Buka fail apps_script_3k.gs dalam ZIP ini menggunakan Notepad.
-5. Salin semua kod dan tampal DI BAWAH kod lama.
+5. Salin SEMUA kod dan tampal sebagai satu-satunya kod dalam Code.gs.
 6. Klik Save.
 7. Klik Deploy > New deployment > Web app.
 8. Execute as: Me. Who has access: Anyone.
