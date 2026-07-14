@@ -45,9 +45,11 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    const body = JSON.parse(e && e.postData && e.postData.contents || '{}');
-    if (body.action === 'save') {
-      const result = simpanPenilaian3K_(body.data || {});
+    const action = e && e.parameter && e.parameter.action || '';
+    if (action === 'save') {
+      const data = JSON.parse(e.parameter.data || '{}');
+      const image = {base64:e.parameter.imageBase64 || '', name:e.parameter.imageName || ''};
+      const result = simpanPenilaian3K_(data, image);
       updateRankingBulanan();
       return output3K_({success:true, message:'Penilaian berjaya disimpan', result});
     }
@@ -74,6 +76,7 @@ function getDashboard3K_() {
   const headers = raw.shift().map(String);
   const idx = index3K_(headers);
   const grouped = {};
+  const gallery = [];
 
   raw.forEach(row => {
     const bulanKey = normalBulan3K_(row[idx.bulan]);
@@ -84,6 +87,8 @@ function getDashboard3K_() {
     if (!grouped[bulanKey][kelas]) grouped[bulanKey][kelas] = {name:kelas, total:0, records:0};
     grouped[bulanKey][kelas].total += markah;
     grouped[bulanKey][kelas].records++;
+    const imageUrl = String(row[17] || '').trim();
+    if (imageUrl) gallery.push({url:imageUrl, kelas:kelas, minggu:row[idx.minggu], tarikh:Utilities.formatDate(date3K_(row[idx.tarikh]) || new Date(),'Asia/Kuala_Lumpur','dd/MM/yyyy')});
   });
 
   const monthlyData = {};
@@ -106,10 +111,11 @@ function getDashboard3K_() {
   });
 
   const missingClasses = classes.filter(k => !assessed.has(k.toUpperCase()));
-  return {monthlyData, classes, missingClasses, currentWeek, serverTime:today.toISOString()};
+  gallery.reverse();
+  return {monthlyData, classes, missingClasses, currentWeek, gallery:gallery.slice(0,30), serverTime:today.toISOString()};
 }
 
-function simpanPenilaian3K_(data) {
+function simpanPenilaian3K_(data, image) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
@@ -145,18 +151,33 @@ function simpanPenilaian3K_(data) {
     const bulan = formatBulan3K_(CONFIG_3K.BULAN[tarikh.getMonth()]);
     const blok = cariBlok3K_(parsed.tingkatan, parsed.kelas);
     const id = Utilities.getUuid().slice(0,8);
+    const imageUrl = image && image.base64 ? uploadImage3K_(image.base64, image.name, fullClass, minggu) : '';
 
     // A:P sahaja. Q ialah formula Jumlah_Markah sedia ada dan tidak disentuh.
     const rowData = [id, tarikh, minggu, bulan, blok, parsed.tingkatan, parsed.kelas].concat(marks);
     input.getRange(row,1,1,16).setValues([rowData]);
+    if (imageUrl) input.getRange(row,18).setValue(imageUrl);
     // Catatan di S. R dikhaskan untuk Gambar_Bukti.
     input.getRange(row,19).setValue(String(data.catatan || ''));
     SpreadsheetApp.flush();
 
-    return {id, kelas:fullClass, minggu, bulan, jumlah:total};
+    return {id, kelas:fullClass, minggu, bulan, jumlah:total, gambar:imageUrl};
   } finally {
     lock.releaseLock();
   }
+}
+
+function uploadImage3K_(base64, originalName, kelas, minggu) {
+  const bytes=Utilities.base64Decode(base64);
+  if(bytes.length>3000000) throw new Error('Gambar terlalu besar. Sila pilih gambar lain.');
+  const folders=DriveApp.getFoldersByName('3K SMART AI - Gambar Bukti');
+  const folder=folders.hasNext()?folders.next():DriveApp.createFolder('3K SMART AI - Gambar Bukti');
+  const safe=String(kelas).replace(/[^a-zA-Z0-9_-]/g,'_');
+  const name=`${safe}_M${minggu}_${Date.now()}.jpg`;
+  const blob=Utilities.newBlob(bytes,'image/jpeg',name);
+  const file=folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK,DriveApp.Permission.VIEW);
+  return 'https://drive.google.com/uc?export=view&id='+file.getId();
 }
 
 function semakDuplikasi3K_(fullClass, tarikhValue, mingguPilihan) {

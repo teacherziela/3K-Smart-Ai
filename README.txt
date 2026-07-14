@@ -21,3 +21,9 @@ C. GITHUB
 
 SEMUA KAD MENU V2 BOLEH DITEKAN. Isi Penilaian dan data sebenar memerlukan Apps Script dipasang.
 Jika masih keluar versi lama, tunggu 1–3 minit kemudian tekan Ctrl+F5.
+KEMAS KINI GAMBAR KELAS (PILIHAN)
+- Cikgu boleh mengambil gambar menggunakan kamera telefon atau memilih gambar daripada galeri.
+- Gambar dikecilkan secara automatik sebelum dihantar.
+- Apps Script akan mencipta folder Google Drive "3K SMART AI - Gambar Bukti".
+- Pautan gambar disimpan pada lajur Gambar_Bukti dan dipaparkan dalam Galeri Bukti.
+- Kali pertama fungsi gambar digunakan, benarkan akses Google Drive jika diminta.
