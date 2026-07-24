@@ -47,7 +47,7 @@ window.generateMonthlyOpr = function () {
   const logoUrl =
     location.origin +
     location.pathname.replace(/[^/]*$/, '') +
-    'assets/logo-smktj2.jpg';
+    'logo-smktj2.jpg';
 
   const report = `<!doctype html>
   <html lang="ms">
