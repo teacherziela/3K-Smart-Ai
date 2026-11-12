@@ -1,6 +1,6 @@
-function adiwiraAwardData(){
+function adiwiraAwardData(sourceData){
   const byClass={};
-  Object.entries(monthlyData||{}).forEach(([bulan,list])=>{
+  Object.entries(sourceData||{}).forEach(([bulan,list])=>{
     const juara=Array.isArray(list)?list[0]:null;
     if(!juara||!juara.name)return;
     const key=String(juara.name).trim().toUpperCase();
@@ -13,14 +13,24 @@ function adiwiraAwardData(){
     .sort((a,b)=>b.wins.length-a.wins.length||b.average-a.average||a.name.localeCompare(b.name,'ms'))[0]||null;
 }
 
-function generateSpecialAdiwiraReport(){
-  const winner=adiwiraAwardData();
-  if(!winner){toast('Belum ada rekod juara untuk Anugerah Khas Adiwira');return;}
-  const winMonths=new Set(winner.wins.map(x=>String(x.bulan).toUpperCase()));
-  const photos=(gallery||[]).filter(x=>String(x.kelas||'').trim().toUpperCase()===String(winner.name).trim().toUpperCase())
-    .filter(x=>!x.bulan||winMonths.has(String(x.bulan).toUpperCase())).slice(0,4);
+async function generateSpecialAdiwiraReport(){
   const w=window.open('','_blank');
   if(!w){toast('Benarkan pop-up untuk menjana laporan');return;}
+  w.document.write('<title>Menyemak data…</title><p style="font:18px Arial;padding:30px">Sedang menyemak juara setiap bulan daripada Google Sheet…</p>');
+  let live;
+  try{
+    live=await api({action:'dashboard',_t:Date.now()});
+  }catch(error){
+    w.document.body.innerHTML=`<p style="font:18px Arial;padding:30px;color:#a11"><b>Laporan tidak dijana.</b><br>Data Google Sheet tidak dapat disemak: ${esc(error.message)}</p>`;
+    return;
+  }
+  const liveMonthly=live.monthlyData||{};
+  const liveGallery=live.gallery||[];
+  const winner=adiwiraAwardData(liveMonthly);
+  if(!winner){w.document.body.innerHTML='<p style="font:18px Arial;padding:30px">Belum ada rekod juara untuk Anugerah Khas Adiwira.</p>';return;}
+  const winMonths=new Set(winner.wins.map(x=>String(x.bulan).toUpperCase()));
+  const photos=liveGallery.filter(x=>String(x.kelas||'').trim().toUpperCase()===String(winner.name).trim().toUpperCase())
+    .filter(x=>!x.bulan||winMonths.has(String(x.bulan).toUpperCase())).slice(0,4);
   const photoHtml=photos.length?photos.map((x,i)=>{const src=driveImageUrl(x.url||x.image);return `<figure><img src="${esc(src)}" alt="Gambar ${esc(winner.name)}"><figcaption>Bukti ${i+1}${x.minggu?` • Minggu ${esc(x.minggu)}`:''}${x.tarikh?` • ${esc(x.tarikh)}`:''}</figcaption></figure>`}).join(''):`<div class="empty-photo">📷<br><small>Tiada gambar bukti yang tersedia</small></div>`;
   const rows=winner.wins.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.bulan)}</td><td><b>${x.score.toFixed(2)} / 50</b></td><td>${x.records||'-'}</td></tr>`).join('');
   const date=new Intl.DateTimeFormat('ms-MY',{dateStyle:'long'}).format(new Date());
